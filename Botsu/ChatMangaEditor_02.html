@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" /> <!-- 文字エンコーディング設定 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" /> <!-- レスポンシブ対応 -->
+  <title>Chat Manga Editor</title> <!-- ページタイトル -->
+  <style>
+    /* 全体のスタイル */
+    body {
+      font-family: sans-serif; /* ベースフォント */
+      padding: 20px; /* ページの余白 */
+      background-color: #ffffff; /* 背景色 */
+    }
+
+    /* ヘッダー部分 */
+    header {
+      text-align: center; /* 中央揃え */
+      margin-top: 40px; /* 上部余白 */
+      margin-bottom: 0px; /* 下部余白 */
+      position: relative; /* 相対位置指定 */
+    }
+
+    /* タイトル入力欄 */
+    #title-input {
+      font-size: 32px; /* フォントサイズ */
+      width: 100%; /* 幅いっぱい */
+      text-align: center; /* テキスト中央揃え */
+      margin-bottom: 0px; /* 下余白 */
+      border: none; /* 枠線なし */
+      background: transparent; /* 背景透明 */
+    }
+
+    /* 漫画全体のラッパー */
+    #comic-wrapper {
+      background: white; /* 背景色 */
+      padding: 20px; /* 内側余白 */
+    }
+
+    /* コミック本体のコンテナ */
+    #comic-container {
+      width: 800px; /* 固定幅 */
+      margin: 0 auto; /* 中央寄せ */
+      display: flex; /* フレックスレイアウト */
+      flex-direction: column; /* 縦並び */
+      gap: 20px; /* パネル間の間隔 */
+      background: #ffffff; /* 背景白 */
+      padding: 20px 40px; /* 内側余白 */
+    }
+
+    /* コマパネル */
+    .panel {
+      display: flex; /* 横並び */
+      justify-content: space-between; /* 左右配置 */
+      align-items: flex-start; /* 上端揃え */
+      background: #ffffff; /* 背景色 */
+      border-radius: 8px; /* 角丸 */
+      position: relative; /* 相対位置指定 */
+    }
+
+    /* 左右反転パネルのスタイル */
+    .panel.reverse {
+      flex-direction: row-reverse; /* 要素の順序反転 */
+    }
+
+    /* 吹き出しの三角形（反転時） */
+    .panel.reverse .text-box::after {
+      left: -20px; /* 左側に配置 */
+      right: auto;
+      border-left: none;
+      border-right: 20px solid #888; /* 三角の色 */
+    }
+
+    /* テキストボックスのラッパー */
+    .text-box {
+      position: relative; /* 三角用 */
+      width: 560px; /* 固定幅 */
+      margin: 0 10px; /* 横のマージン */
+      display: flex;
+      align-items: center; /* 垂直中央 */
+    }
+
+    /* テキストエリア */
+    textarea {
+      width: 100%; /* 幅いっぱい */
+      min-height: 90px; /* 最小高さ */
+      resize: vertical; /* 垂直方向のリサイズ */
+      font-size: 24px; /* フォントサイズ */
+      line-height: 1.8; /* 行間 */
+      padding: 20px; /* 内側余白 */
+      box-sizing: border-box; /* 枠も含むサイズ計算 */
+      border-radius: 20px; /* 角丸 */
+      border: 2px solid #888; /* 枠線色と太さ */
+      background-color: #eee; /* 背景白 */
+      white-space: pre-wrap; /* 改行保持 */
+      overflow-wrap: break-word; /* 単語折返し */
+      outline: none; /* フォーカス時の線なし */
+    }
+
+    /* テキストエリアのリサイズハンドル非表示 */
+    textarea::-webkit-resizer {
+      display: none;
+    }
+
+    /* 吹き出しの三角形 */
+    .text-box::after {
+      content: "";
+      position: absolute;
+      right: -20px; /* 右側に配置 */
+      top: 25%; /* 上から1/4 */
+      width: 0;
+      height: 0;
+      border-top: 20px solid transparent;
+      border-bottom: 20px solid transparent;
+      border-left: 20px solid #888; /* 三角の色 */
+      cursor: pointer; /* クリック可能 */
+    }
+
+    /* 顔画像（反転時） */
+    .panel.reverse .text-box::after {
+      left: -20px;
+      right: auto;
+      border-left: none;
+      border-right: 20px solid #888;
+    }
+
+    /* 顔イラストのスタイル */
+    .face {
+      width: 200px;
+      height: 200px;
+      object-fit: contain;
+      background: #fff;
+      display: block;
+      cursor: pointer;
+    }
+
+    /* 画像未選択時の枠線 */
+    .face:not(.has-image) {
+      border: 2px solid #ccc;
+    }
+
+    /* 顔イラストとボタンのコンテナ */
+    .face-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 0;
+    }
+
+    /* ファイル選択inputの非表示 */
+    .face-input {
+      display: none;
+    }
+
+    /* コントロールボタン群 */
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 30px;
+    }
+
+    /* UI表示/非表示ボタン */
+    #toggle-ui-btn {
+      display: block;
+      margin: 0 auto;
+      margin-top: 10px;
+    }
+
+    /* UI非表示時に隠す要素 */
+    .hidden-ui .controls {
+      display: none;
+    }
+
+    /* 大イラストエリアのスタイル */
+    .image-panel {
+      width: 600px;
+      height: 400px;
+      margin: 0 auto;
+      background-color: #ddd;
+      border: 2px dashed #aaa;
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .image-panel img {
+      max-width: 100%;
+      max-height: 100%;
+      display: none;
+    }
+
+    .image-panel.has-image {
+      background: none;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- ヘッダー（タイトル） -->
+  <header>
+    <input id="title-input" value="タイトルを入力..." />
+  </header>
+
+  <!-- コミック全体のラッパー -->
+  <div id="comic-wrapper">
+    <div id="comic-container"></div>
+  </div>
+
+  <!-- 操作ボタン群 -->
+  <div class="controls">
+    <button id="add-panel-btn">＋ コマ追加</button>
+    <button id="add-image-btn">＋ イラスト追加</button>
+    <button id="toggle-ui-btn">UI 非表示</button>
+  </div>
+
+  <script>
+    // パネル作成関数
+    function createPanel() {
+      const panel = document.createElement('div');
+      panel.className = 'panel';
+
+      const textBox = document.createElement('div');
+      textBox.className = 'text-box';
+
+      const textarea = document.createElement('textarea');
+      textarea.placeholder = 'セリフを入力...';
+      textBox.appendChild(textarea);
+
+      const faceContainer = document.createElement('div');
+      faceContainer.className = 'face-container';
+
+      const faceImg = document.createElement('img');
+      faceImg.className = 'face';
+      faceImg.addEventListener('click', () => fileInput.click());
+
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.className = 'face-input';
+
+      fileInput.addEventListener('change', event => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = e => {
+            faceImg.src = e.target.result;
+            faceImg.classList.add('has-image');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      faceContainer.appendChild(faceImg);
+      faceContainer.appendChild(fileInput);
+
+      textBox.addEventListener('click', (e) => {
+        const rect = textBox.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        if ((clickX > rect.width - 30 && !panel.classList.contains('reverse')) ||
+            (clickX < 30 && panel.classList.contains('reverse')) ) {
+          panel.classList.toggle('reverse');
+        }
+      });
+
+      panel.appendChild(textBox);
+      panel.appendChild(faceContainer);
+
+      return panel;
+    }
+
+    // イラストパネル作成関数
+    function createImagePanel() {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'image-panel';
+
+      const img = document.createElement('img');
+      wrapper.appendChild(img);
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+
+      wrapper.addEventListener('click', () => input.click());
+
+      input.addEventListener('change', event => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = e => {
+            img.src = e.target.result;
+            img.style.display = 'block';
+            wrapper.classList.add('has-image');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      wrapper.appendChild(input);
+
+      return wrapper;
+    }
+
+    const container = document.getElementById('comic-container');
+    const addBtn = document.getElementById('add-panel-btn');
+    const addImageBtn = document.getElementById('add-image-btn');
+    const toggleUIBtn = document.getElementById('toggle-ui-btn');
+    const body = document.body;
+
+    addBtn.addEventListener('click', () => {
+      const newPanel = createPanel();
+      container.appendChild(newPanel);
+    });
+
+    addImageBtn.addEventListener('click', () => {
+      const newImagePanel = createImagePanel();
+      container.appendChild(newImagePanel);
+    });
+
+    addBtn.click();
+
+    toggleUIBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      body.classList.toggle('hidden-ui');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (body.classList.contains('hidden-ui')) {
+        const isButton = e.target.closest('#toggle-ui-btn');
+        if (!isButton) {
+          body.classList.remove('hidden-ui');
+        }
+      }
+    });
+  </script>
+</body>
+</html>

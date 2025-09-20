@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat Manga Editor</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+
+    header {
+      text-align: center;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    #title-input {
+      font-size: 32px;
+      width: 100%;
+      text-align: center;
+      border: none;
+      background: transparent;
+      outline: none;
+    }
+
+    #comic-wrapper {
+      padding: 20px;
+    }
+
+    #comic-container {
+      width: 800px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 50px; /* コマ間のマージンを増やす */
+      background: #f9f9f9;
+      padding: 40px;
+      border: 1px solid #ddd;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+
+    .panel, .image-panel {
+      position: relative;
+      border: 2px solid transparent; /* 通常の枠線は透明 */
+      border-radius: 8px;
+      padding: 10px;
+      transition: all 0.2s ease-in-out;
+    }
+
+    /* ★編集中のパネル */
+    .panel.active, .image-panel.active {
+      border: 2px solid #4a90e2; /* 太い青枠 */
+      box-shadow: 0 0 10px rgba(74, 144, 226, 0.5); /* 青い影 */
+    }
+
+    .panel {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      background: #ffffff;
+    }
+
+    .panel.reverse {
+      flex-direction: row-reverse;
+    }
+
+    .panel.reverse .text-box::after {
+      left: -20px;
+      right: auto;
+      border-left: none;
+      border-right: 20px solid #888;
+    }
+
+    .text-box {
+      position: relative;
+      width: 560px;
+      margin: 0 10px;
+      display: flex;
+      align-items: center;
+      margin-top: 20px;
+      z-index: 2;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 90px;
+      resize: vertical;
+      font-size: 24px;
+      line-height: 1.8;
+      padding: 20px;
+      box-sizing: border-box;
+      border-radius: 20px;
+      border: 2px solid #888;
+      background-color: #eee;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      outline: none;
+    }
+
+    textarea::-webkit-resizer {
+      display: none;
+    }
+
+    .text-box::after {
+      content: "";
+      position: absolute;
+      right: -20px;
+      top: 25%;
+      width: 0;
+      height: 0;
+      border-top: 20px solid transparent;
+      border-bottom: 20px solid transparent;
+      border-left: 20px solid #888;
+    }
+
+    .face-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      position: relative;
+      z-index: 1;
+    }
+
+    .face {
+      width: 200px;
+      height: 200px;
+      object-fit: contain;
+      background: #fff;
+      display: block;
+      cursor: pointer;
+    }
+
+    .face:not(.has-image) {
+      border: 2px solid #ccc;
+    }
+
+    .face-input {
+      display: none;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    /* ★パネル内ボタンのコンテナ */
+    .panel-controls {
+      display: none;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      position: absolute;
+      bottom: -45px; /* 枠線の外下に配置 */
+      left: 0;
+    }
+
+    .panel.active .panel-controls, .image-panel.active .panel-controls {
+      display: flex; /* アクティブなパネルでのみ表示 */
+    }
+
+    /* ★プレビューモード */
+    .preview-mode .controls,
+    .preview-mode .panel-controls {
+      display: none !important;
+    }
+
+    .preview-mode .panel.active,
+    .preview-mode .image-panel.active {
+      border: 2px solid transparent;
+      box-shadow: none;
+    }
+
+    .image-panel {
+      width: 600px;
+      height: 400px;
+      margin: 0 auto;
+      background-color: #ddd;
+      border: 2px dashed #aaa;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .image-panel img {
+      max-width: 100%;
+      max-height: 100%;
+      display: none;
+    }
+
+    .image-panel.has-image {
+      background: none;
+      border-style: solid;
+    }
+
+  </style>
+</head>
+<body>
+  <header>
+    <input id="title-input" value="タイトルを入力..." />
+  </header>
+
+  <div id="comic-wrapper">
+    <div id="comic-container"></div>
+    <div class="controls">
+      <button id="add-panel-btn">＋ コマ追加</button>
+      <button id="add-image-btn">＋ イラスト追加</button>
+      <button id="preview-btn">プレビュー</button>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('comic-container');
+    const addBtn = document.getElementById('add-panel-btn');
+    const addImageBtn = document.getElementById('add-image-btn');
+    const previewBtn = document.getElementById('preview-btn');
+    const body = document.body;
+
+    let activePanel = null;
+
+    // パネルまたはコンテナの背景クリックでアクティブ化を解除
+    container.addEventListener('click', (e) => {
+      if (e.target === container) {
+        if (activePanel) {
+          activePanel.classList.remove('active');
+          activePanel = null;
+        }
+      }
+    });
+
+    function activatePanel(panel) {
+      if (activePanel && activePanel !== panel) {
+        activePanel.classList.remove('active');
+      }
+      panel.classList.add('active');
+      activePanel = panel;
+    }
+
+    function createPanelControls(panel) {
+      const panelControls = document.createElement('div');
+      panelControls.className = 'panel-controls';
+
+      if (panel.classList.contains('panel')) {
+        const flipPanelBtn = document.createElement('button');
+        flipPanelBtn.textContent = 'コマ左右反転';
+        flipPanelBtn.addEventListener('click', () => panel.classList.toggle('reverse'));
+        panelControls.appendChild(flipPanelBtn);
+
+        const flipImageBtn = document.createElement('button');
+        flipImageBtn.textContent = '画像左右反転';
+        flipImageBtn.addEventListener('click', () => {
+          const faceImg = panel.querySelector('.face');
+          if (faceImg) {
+            faceImg.style.transform = faceImg.style.transform === 'scaleX(-1)' ? '' : 'scaleX(-1)';
+          }
+        });
+        panelControls.appendChild(flipImageBtn);
+      }
+
+      const deletePanelBtn = document.createElement('button');
+      deletePanelBtn.textContent = 'コマ削除';
+      deletePanelBtn.addEventListener('click', () => {
+        if (activePanel === panel) activePanel = null;
+        panel.remove();
+      });
+      panelControls.appendChild(deletePanelBtn);
+
+      return panelControls;
+    }
+
+    function createPanel() {
+      const panel = document.createElement('div');
+      panel.className = 'panel';
+
+      const textBox = document.createElement('div');
+      textBox.className = 'text-box';
+      const textarea = document.createElement('textarea');
+      textarea.placeholder = 'セリフを入力...';
+      textBox.appendChild(textarea);
+
+      const faceContainer = document.createElement('div');
+      faceContainer.className = 'face-container';
+      const faceImg = document.createElement('img');
+      faceImg.className = 'face';
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.className = 'face-input';
+
+      faceImg.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', event => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = e => {
+            faceImg.src = e.target.result;
+            faceImg.classList.add('has-image');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      faceContainer.appendChild(faceImg);
+      faceContainer.appendChild(fileInput);
+
+      panel.appendChild(textBox);
+      panel.appendChild(faceContainer);
+      panel.appendChild(createPanelControls(panel));
+
+      panel.addEventListener('click', () => activatePanel(panel));
+
+      return panel;
+    }
+
+    function createImagePanel() {
+      const panel = document.createElement('div');
+      panel.className = 'image-panel';
+
+      const img = document.createElement('img');
+      panel.appendChild(img);
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+
+      panel.addEventListener('click', () => input.click());
+      input.addEventListener('change', event => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = e => {
+            img.src = e.target.result;
+            img.style.display = 'block';
+            panel.classList.add('has-image');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      panel.appendChild(input);
+      panel.appendChild(createPanelControls(panel));
+      panel.addEventListener('click', () => activatePanel(panel));
+
+      return panel;
+    }
+
+    addBtn.addEventListener('click', () => {
+      const newPanel = createPanel();
+      container.appendChild(newPanel);
+      activatePanel(newPanel);
+    });
+
+    addImageBtn.addEventListener('click', () => {
+      const newImagePanel = createImagePanel();
+      container.appendChild(newImagePanel);
+      activatePanel(newImagePanel);
+    });
+
+    previewBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      body.classList.toggle('preview-mode');
+      if (body.classList.contains('preview-mode') && activePanel) {
+        activePanel.classList.remove('active');
+        activePanel = null;
+      }
+    });
+
+    // 初期状態でパネルを1つ追加
+    addBtn.click();
+
+    // プレビューモードからクリックで復帰
+    document.addEventListener('click', (e) => {
+      if (body.classList.contains('preview-mode') && !previewBtn.contains(e.target)) {
+        body.classList.remove('preview-mode');
+      }
+    });
+
+  </script>
+</body>
+</html>
